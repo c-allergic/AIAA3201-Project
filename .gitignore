@@ -1,0 +1,37 @@
+# 数据与权重
+data/
+datasets/
+weights/
+checkpoints/
+runs/
+outputs/
+logs/
+
+# 模型文件
+*.ckpt
+*.pt
+*.pth
+*.onnx
+*.h5
+*.npz
+*.npy
+
+# 压缩包/大二进制
+*.zip
+*.tar
+*.gz
+*.7z
+*.mp4
+*.avi
+
+# 环境与缓存
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+6a04293048b03f2bd79bf34c
+PROJECT_PROGRESS.md
+Project_1__Video_Super_Resolution_arxiv_optional.pdf
+ol_key.txt
+results/

@@ -1,0 +1,34 @@
+# Inference-first VSR config (no mandatory re-training)
+
+model_name: "bicubic"
+
+runtime:
+  device: "cuda"
+  scale: 4
+  tile_size: 0
+  tile_pad: 10
+
+weights:
+  root_dir: "./checkpoints/pretrained"
+  scst_root_dir: "./checkpoints/scst"
+  urls:
+    srcnn_x4: "https://download.openmmlab.com/mmediting/restorers/srcnn/srcnn_x4k915_1x16_1000k_div2k_20200608-4186f232.pth"
+    basicvsr_x4: "https://download.openmmlab.com/mmediting/restorers/basicvsr/basicvsr_reds4_20120409-0e599677.pth"
+    basicvsr_plusplus_x4: "https://download.openmmlab.com/mmediting/restorers/basicvsr_plusplus/basicvsr_plusplus_c64n7_8x1_600k_reds4_20210217-db622b2f.pth"
+    realesrgan_x4plus: "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth"
+    realesrnet_x4plus: "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.1/RealESRNet_x4plus.pth"
+    scst_localatten_unet: "https://huggingface.co/MochunniaN1/SCST/resolve/main/localatten_unet.pth"
+    scst_mococtrl_unet: "https://huggingface.co/MochunniaN1/SCST/resolve/main/mococtrl_unet.pth"
+    scst_stcm_unet: "https://huggingface.co/MochunniaN1/SCST/resolve/main/stcm_unet.pth"
+  repos:
+    # stabilityai/stable-diffusion-2-1-base 在 Hub 上已 404；改用社区镜像（Diffusers 目录结构与 SCST 一致）。
+    sd21_base:
+      repo_id: "Manojb/stable-diffusion-2-1-base"
+      local_subdir: "stable-diffusion-2-1-base"
+    scst_controlnet:
+      repo_id: "MochunniaN1/SCST"
+      # 落盘目录由脚本固定为 scst_root_dir（见 download_pretrained.py）；此处仅为占位与可读性。
+      local_subdir: "controlnet"
+      # Hub 仓库内路径为 checkpoints/controlnet/（非根目录 controlnet/），否则 allow_patterns 会为 0 files。
+      allow_patterns:
+        - "checkpoints/controlnet/**"

@@ -1,0 +1,30 @@
+# GPU：默认固定为 CUDA 12.4 轮子，与 nvidia-smi 显示 CUDA 12.x 的驱动兼容（避免误装 PyPI 上默认的 +cu130）。
+# 仅需 CPU 时请删除下行两行 torch，并改用：`pip install torch torchvision`
+--extra-index-url https://download.pytorch.org/whl/cu124
+torch==2.6.0+cu124
+torchvision==0.21.0+cu124
+numpy
+Pillow
+PyYAML
+
+# part2 pretrained backbones
+basicsr
+
+# evaluation pipeline
+scikit-image
+lpips
+pytorch-fid
+
+# part3: diffusion-based generative branch (SCST / SD2.1 + ControlNet)
+diffusers>=0.29
+transformers
+accelerate
+einops
+safetensors
+huggingface_hub
+opencv-python
+omegaconf
+
+# optional: temporal Mamba module used by SCST
+# install only if your CUDA toolchain is happy; fall back to LocalAttention otherwise.
+# pip install mamba-ssm causal-conv1d
