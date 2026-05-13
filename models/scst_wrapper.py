@@ -21,6 +21,9 @@ class SCSTVideoWrapper(nn.Module):
         scst_root: str = "third_party/SCST",
         scst_ckpt_root: str = "checkpoints/scst",
         temporal_mode: str = "localatten",
+        num_inference_steps: int = 20,
+        guidance_scale: float = 5.0,
+        seed: int = 42,
     ):
         super().__init__()
         if scale != 4:
@@ -31,6 +34,9 @@ class SCSTVideoWrapper(nn.Module):
         self.scst_root = os.path.abspath(scst_root)
         self.scst_ckpt_root = os.path.abspath(scst_ckpt_root)
         self.temporal_mode = temporal_mode
+        self.num_inference_steps = num_inference_steps
+        self.guidance_scale = guidance_scale
+        self.seed = seed
         self._ckpt_path = ""
 
     def load_checkpoint(self, ckpt_path: str) -> None:
@@ -54,6 +60,17 @@ class SCSTVideoWrapper(nn.Module):
             frames.append(torch.from_numpy(arr).permute(2, 0, 1))
         return torch.stack(frames, dim=0).unsqueeze(0).to(device)
 
+    def _resolve_python(self) -> str:
+        candidates = [
+            os.path.expanduser("~/miniconda3/envs/vsr_part3/bin/python"),
+            os.path.expanduser("~/.conda/envs/vsr_part3/bin/python"),
+        ]
+        for p in candidates:
+            if os.path.isfile(p):
+                return p
+        import sys
+        return sys.executable
+
     def _build_command(self, input_dir: str, output_dir: str) -> list:
         if self.temporal_mode == "stcm":
             unet_cfg = "models/configs/stcm.yaml"
@@ -69,7 +86,7 @@ class SCSTVideoWrapper(nn.Module):
         )
         ctrl = os.path.abspath(os.path.join(self.scst_ckpt_root, "controlnet"))
         return [
-            "python",
+            self._resolve_python(),
             "inference_SCST.py",
             "--ckpt_model_path",
             ckpt,
@@ -88,7 +105,7 @@ class SCSTVideoWrapper(nn.Module):
             "--output_dir",
             output_dir,
             "--num_inference_steps",
-            "20",
+            str(self.num_inference_steps),
             "--upscale",
             "4",
             "--process_size",
@@ -98,7 +115,7 @@ class SCSTVideoWrapper(nn.Module):
             "--unet_config_path",
             unet_cfg,
             "--seed",
-            "42",
+            str(self.seed),
             "--num_frame",
             "8",
             "--prompt",
@@ -106,7 +123,7 @@ class SCSTVideoWrapper(nn.Module):
             "--negative_prompt",
             "blurry, dotted, noise, raster lines, unclear, lowres, over-smoothed",
             "--guidance_scale",
-            "5.0",
+            str(self.guidance_scale),
             "--frame_rate",
             "12",
             "--pretrained_model_path",

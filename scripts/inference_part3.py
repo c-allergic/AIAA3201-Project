@@ -34,6 +34,24 @@ def parse_args():
         help="temporal_refine neighbor blend; larger often improves temporal metrics but may soften detail.",
     )
     parser.add_argument(
+        "--scst_steps",
+        type=int,
+        default=20,
+        help="SCST num_inference_steps (more = better quality, slower).",
+    )
+    parser.add_argument(
+        "--scst_guidance",
+        type=float,
+        default=5.0,
+        help="SCST guidance_scale.",
+    )
+    parser.add_argument(
+        "--scst_seed",
+        type=int,
+        default=42,
+        help="SCST random seed.",
+    )
+    parser.add_argument(
         "--fusion_gen_scale",
         type=float,
         default=1.0,
@@ -95,6 +113,9 @@ def main():
         "scst", scale=cfg.runtime.scale, scst_ckpt_root=cfg.weights.scst_root_dir
     ).to(device).eval()
     scst.temporal_mode = "stcm" if args.use_stcm else "localatten"
+    scst.num_inference_steps = args.scst_steps
+    scst.guidance_scale = args.scst_guidance
+    scst.seed = args.scst_seed
     scst.load_checkpoint(ckpts["scst_selected_unet"])
 
     with torch.no_grad():

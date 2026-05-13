@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Inference entrypoint (cleaned Part1/Part2, pretrained-first)."""
+"""Inference entrypoint (Part1/Part2, pretrained-first).
+
+Part1: bicubic / lanczos / temporal_avg / srcnn
+Part2: basicvsr / basicvsr_pp / realesrgan / realesrnet
+Part3: scst (also usable via inference_part3.py for B_only / C_hybrid)
+"""
 
 import argparse
 import os
@@ -24,6 +29,9 @@ def parse_args():
         required=True,
         choices=[
             "bicubic",
+            "lanczos",
+            "temporal_avg",
+            "temporal_average",
             "srcnn",
             "basicvsr",
             "basicvsr_pp",
@@ -42,9 +50,14 @@ def parse_args():
     return parser.parse_args()
 
 
+CHECKPOINT_FREE = {"bicubic", "lanczos", "temporal_avg", "temporal_average"}
+
+
 def resolve_checkpoint(model_name: str, cfg: Config, user_ckpt: str) -> str:
     if user_ckpt:
         return user_ckpt
+    if model_name in CHECKPOINT_FREE:
+        return ""
     if model_name == "srcnn":
         return ensure_weights(cfg.weights.root_dir, cfg.weights.urls, "srcnn_x4")
     if model_name == "basicvsr":
@@ -76,6 +89,7 @@ def main():
         "real_esrgan": "realesrgan",
         "real_esrnet": "realesrnet",
         "basicvsr_plusplus": "basicvsr_pp",
+        "temporal_average": "temporal_avg",
     }
     normalized_name = alias.get(args.model_name, args.model_name)
     bm_kw = {}

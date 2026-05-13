@@ -23,7 +23,7 @@ import sys
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 DEFAULT_SEQUENCES = ("calendar", "city", "foliage", "walk")
-PART12_MODELS = ("bicubic", "srcnn", "basicvsr", "realesrgan", "realesrnet")
+PART12_MODELS = ("bicubic", "lanczos", "temporal_avg", "srcnn", "basicvsr", "realesrgan", "realesrnet")
 
 
 def _run(cmd: list[str], cwd: str | None = None) -> None:

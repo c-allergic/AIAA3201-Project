@@ -1,209 +1,205 @@
-# VSR Project (Cleaned)
+# VSR_Project: Video Super-Resolution Pipeline
 
-本版本按课程 PDF 目标做了精简：**Part1 + Part2** 为预训练推理主线；**Part3** 为混合分支（BasicVSR++ + SCST + 融合/后处理）。默认优先使用开源预训练权重，避免从零训练。
+A systematic video super-resolution (VSR) benchmark spanning classical interpolation, recurrent alignment-based models, and a generative hybrid framework with uncertainty-aware fusion.
 
-> 跨对话窗口快速恢复进度：请先看 `PROJECT_PROGRESS.md`。
+## Overview
 
-## 保留内容
+This repository implements a three-part VSR investigation:
 
-- `models/`
-  - `bicubic`（baseline）
-  - `srcnn`（Part1）
-  - `basicvsr`（Part2）
-  - `realesrgan`（Part2）
-  - `realesrnet`（Part2，非GAN版本）
-- `scripts/inference.py`：统一推理入口（Part1/2）
-- `scripts/inference_part3.py`：Part3（`B_only` / `C_hybrid`）
-- `scripts/run_full_benchmark.py`：一键推理 + `eval_pipeline` 汇总
-- `scripts/download_pretrained.py`：下载开源权重
-- `configs/default.yaml`：权重 URL 与运行配置
+| Part | Methods | Description |
+|------|---------|-------------|
+| **Part 1** | Bicubic, Lanczos3, Temporal Averaging + Unsharp Masking, SRCNN | Classical and shallow-CNN baselines |
+| **Part 2** | BasicVSR++, Real-ESRGAN, Real-ESRNet | State-of-the-art recurrent VSR and GAN-based perceptual enhancement |
+| **Part 3** | SCST (Stable Diffusion + ControlNet-Tile) + Uncertainty-Aware Fusion | Hybrid pipeline blending fidelity (BasicVSR++) and generative (SCST) branches with pixel-wise uncertainty weights and flow-guided temporal refinement |
 
-## 仓库演进说明
+## Key Results (BI×4, 4-sequence avg.)
 
-- 早期迭代曾删除冗余调试脚本与重复配置；**当前主干已重新集成 Part 3**（见下文与 `PROJECT_PROGRESS.md`）。
-- 训练向推理优先：Part1/2 默认使用开源预训练权重；Part3 依赖 HuggingFace / SCST 权重时请优先运行 `scripts/download_pretrained.py`。
+| Method | PSNR↑ | SSIM↑ | LPIPS↓ | tLPIPS↓ |
+|--------|-------|-------|--------|---------|
+| Bicubic | 22.49 | 0.639 | 0.512 | 0.050 |
+| SRCNN | 23.16 | 0.690 | 0.388 | 0.069 |
+| Real-ESRGAN | 21.02 | 0.595 | **0.282** | 0.092 |
+| BasicVSR++ | **25.81** | **0.834** | 0.214 | 0.065 |
+| **C_hybrid (g=0.3)** | 25.62 | 0.821 | 0.206 | **0.054** |
 
-## 环境
+C_hybrid (g=0.3) matches BasicVSR++ PSNR while improving temporal consistency (tLPIPS) by **17%**. See the [full report](https://www.overleaf.com/project/6a04293048b03f2bd79bf34c) for complete tables, BD×4, Vimeo-90K, and ablation results.
 
-### GPU：PyTorch 与驱动版本（必读）
+## Project Structure
 
-`nvidia-smi` 顶栏里的 **CUDA Version**（例如 12.8）表示**驱动支持的最高 CUDA**，并不需要你去装 CUDA 13。若使用 **`pip install torch` 默认包装上了 `2.x+cu130`**（CUDA 13 运行时），而驱动仍为 12.x，会出现 **`CUDA initialization: driver too old`**，`torch.cuda.is_available()` 为 `False`。
-
-推荐与本仓库一并使用的组合：**Python 3.13 + PyTorch 2.6 + CUDA 12.4 轮子**（与驱动 12.x 兼容）：
-
-```bash
-pip uninstall -y torch torchvision triton cuda-toolkit cuda-bindings nvidia-cudnn-cu13 2>/dev/null
-pip install torch==2.6.0+cu124 torchvision==0.21.0+cu124 --index-url https://download.pytorch.org/whl/cu124
-python -c "import torch; print(torch.__version__, 'cuda=', torch.version.cuda, 'ok=', torch.cuda.is_available())"
+```
+VSR_Project/
+├── configs/default.yaml          # Weight URLs and run configuration
+├── models/
+│   ├── baselines.py              # Bicubic, Lanczos3, SRCNN, Temporal Avg
+│   ├── basicvsr.py               # BasicVSR (bidirectional recurrent)
+│   ├── basicvsr_pp.py            # BasicVSR++ (second-order propagation)
+│   ├── real_esrgan.py            # Real-ESRGAN / Real-ESRNet
+│   ├── scst_wrapper.py           # SCST subprocess wrapper (Stable Diffusion + ControlNet)
+│   └── uncertainty_fusion.py     # Rule-based and learned fusion weight estimators
+├── scripts/
+│   ├── inference.py              # Unified Part 1/2 inference entrypoint
+│   ├── inference_part3.py        # Part 3 inference (B_only / C_hybrid modes)
+│   ├── eval_pipeline.py          # PSNR/SSIM/LPIPS/tLPIPS/flow evaluation
+│   ├── run_full_benchmark.py     # One-click download → inference → eval
+│   ├── download_pretrained.py    # Download all pretrained weights
+│   ├── setup_part3_env.sh        # Conda environment setup for Part 3
+│   ├── train_fusion.py           # Lightweight CNN fusion weight trainer
+│   ├── temporal_refine.py        # SpyNet flow-guided temporal blending
+│   └── ablation_tr.py            # Temporal refinement ablation
+├── third_party/SCST/             # SCST submodule (CVPR 2025)
+├── requirements.txt
+└── README.md
 ```
 
-若有其它带 `nvidia-*-cu13` / `cuda-toolkit` 的旧包残留，可 `pip list | grep -i nvidia` 后逐项卸载，直到 `python -c "import torch; print(torch.cuda.is_available())"` 为 `True`。
+## Environment Setup
 
-更换 PyTorch 后若 `basicsr` 报错，可在上述 GPU 轮子装好后再装：`pip install --no-deps --no-build-isolation basicsr==1.4.2`。
-
-### 依赖安装
+### Part 1 & 2 (vsr env)
 
 ```bash
+conda create -n vsr python=3.10 -y
+conda activate vsr
+pip install torch==2.6.0+cu124 torchvision==0.21.0+cu124 --index-url https://download.pytorch.org/whl/cu124
 pip install -r requirements.txt
 ```
 
-如果 `basicsr` 依赖冲突，可先安装核心依赖，再执行：
+If `basicsr` conflicts: `pip install --no-deps --no-build-isolation basicsr==1.4.2`
 
-```bash
-pip install --no-deps --no-build-isolation basicsr==1.4.2
-```
+### Part 3 (vsr_part3 env, separate)
 
-## 下载开源权重
-
-```bash
-python scripts/download_pretrained.py --config configs/default.yaml
-```
-
-默认下载：
-- SRCNN x4（OpenMMLab）
-- BasicVSR x4（OpenMMLab）
-- BasicVSR++ x4（OpenMMLab，备用）
-- RealESRGAN x4plus（官方 release）
-- RealESRNet x4plus（官方 release）
-
-## 推理
-
-输入目录要求为视频帧目录（`.png/.jpg`），例如 `data/BDx4/calendar`。
-
-```bash
-python scripts/inference.py \
-  --model_name bicubic \
-  --input_dir data/BDx4/calendar \
-  --output_dir results/calendar_bicubic
-```
-
-```bash
-python scripts/inference.py \
-  --model_name srcnn \
-  --input_dir data/BDx4/calendar \
-  --output_dir results/calendar_srcnn
-```
-
-```bash
-python scripts/inference.py \
-  --model_name basicvsr \
-  --input_dir data/BDx4/calendar \
-  --output_dir results/calendar_basicvsr
-```
-
-```bash
-python scripts/inference.py \
-  --model_name realesrgan \
-  --input_dir data/BDx4/calendar \
-  --output_dir results/calendar_realesrgan
-```
-
-```bash
-python scripts/inference.py \
-  --model_name realesrnet \
-  --input_dir data/BDx4/calendar \
-  --output_dir results/calendar_realesrnet
-```
-
-## 说明
-
-- 本仓库不会修改你的 `data/` 下已下载数据。
-- 若要自定义权重路径，可在推理时传 `--checkpoint /path/to/model.pth`。
-
-## Part 3: Hybrid VSR (Direction C + Direction B)
-
-本仓库已接入 Part 3 方案：`BasicVSR++`（保真分支）+ `SCST`（生成分支）+ 不确定性融合 + 时序后处理。
-
-### 参考与出处（严格标注）
-
-- BasicVSR++: Chan et al., CVPR 2022.
-- SCST: Shi et al., CVPR 2025, repo: `ssj9596/SCST`（已放在 `third_party/SCST` 并保留出处声明）。
-- 可选对照：DOVE (arXiv 2025), Upscale-A-Video (CVPR 2024)。
-
-### Part3 独立 Conda 环境（推荐）
-
-SCST 子进程依赖 **`mmcv`**、**`omegaconf`** 等与 **Python 3.13 / 系统默认环境** 常不兼容；建议在 **Python 3.10** 的干净 conda 环境里跑 Part3。
-
-1. **磁盘**：安装 PyTorch + CUDA + mmcv 建议预留 **≥15GB** 空闲（`df -h`）。
-2. **一键安装**（在仓库根目录）：
+Part 3 requires `mmcv` and `omegaconf` which conflict with newer Python/torch versions.
 
 ```bash
 bash scripts/setup_part3_env.sh
 conda activate vsr_part3
 ```
 
-3. **运行**（需在激活环境后、`VSR_Project` 根目录）：
+## Download Pretrained Weights
 
 ```bash
+python scripts/download_pretrained.py --config configs/default.yaml
+```
+
+Downloads: SRCNN x4, BasicVSR x4, BasicVSR++ x4, Real-ESRGAN x4plus, Real-ESRNet x4plus, SpyNet, Stable Diffusion 2.1, ControlNet-Tile, and SCST checkpoints.
+
+## Inference
+
+### Part 1 & 2
+
+```bash
+# Bicubic interpolation
+python scripts/inference.py --model_name bicubic --input_dir data/BIx4/calendar --output_dir results/bi_calendar_bicubic
+
+# SRCNN
+python scripts/inference.py --model_name srcnn --input_dir data/BIx4/calendar --output_dir results/bi_calendar_srcnn
+
+# BasicVSR++
+python scripts/inference.py --model_name basicvsr_pp --input_dir data/BIx4/calendar --output_dir results/bi_calendar_basicvsr
+
+# Real-ESRGAN
+python scripts/inference.py --model_name realesrgan --input_dir data/BIx4/calendar --output_dir results/bi_calendar_realesrgan
+
+# Real-ESRNet (non-GAN)
+python scripts/inference.py --model_name realesrnet --input_dir data/BIx4/calendar --output_dir results/bi_calendar_realesrnet
+
+# Temporal averaging + unsharp masking
+python scripts/inference.py --model_name temporal_avg --input_dir data/BIx4/calendar --output_dir results/bi_calendar_temporal_avg
+```
+
+Available models: `bicubic`, `lanczos`, `temporal_avg`, `srcnn`, `basicvsr`, `basicvsr_pp`, `realesrgan`, `realesrnet`
+
+### Part 3 (requires `conda activate vsr_part3`)
+
+```bash
+# SCST standalone (Direction B only)
 python scripts/inference_part3.py --mode B_only \
   --input_dir data/BIx4/calendar \
-  --output_dir results/part3_calendar_B_only \
-  --device cuda:0
-```
-
-脚本内默认使用 **torch 2.4 + cu124** 与 **mmcv 2.2.0**（OpenMMLab 轮子）；若与本机驱动不匹配，再按需改 `scripts/setup_part3_env.sh`。
-
-### Part3 推理命令
-
-`B_only`（SCST 分支，若缺权重会自动降级到 bicubic 占位输出，保证流程可运行）：
-
-```bash
-python scripts/inference_part3.py \
-  --mode B_only \
-  --input_dir data/BIx4/calendar \
   --output_dir results/part3_calendar_B_only
-```
 
-`C_hybrid`（BasicVSR++ + SCST + uncertainty + temporal refine）：
-
-```bash
-python scripts/inference_part3.py \
-  --mode C_hybrid \
+# Hybrid fusion (Direction C): BasicVSR++ + SCST + uncertainty fusion + temporal refinement
+python scripts/inference_part3.py --mode C_hybrid \
   --input_dir data/BIx4/calendar \
-  --output_dir results/part3_calendar_C_hybrid
+  --output_dir results/part3_calendar_C_hybridg0.3
+
+# Advanced options
+python scripts/inference_part3.py --mode C_hybrid \
+  --input_dir data/BIx4/calendar \
+  --output_dir results/part3_calendar_stcm_g0.3 \
+  --temporal_mode stcm \       # STCM instead of LocalAttention
+  --scst_steps 20 \            # DDIM sampling steps
+  --scst_guidance 5.0 \        # Classifier-free guidance scale
+  --fusion_gen_scale 0.3       # Global fusion scale g
 ```
 
-### Part3 轻量训练（可选）
+If SCST checkpoints are missing, the wrapper falls back to bicubic for the generative branch (pipeline stays executable, **but metrics must not be reported**).
 
-先准备三个目录（同一序列）：
-- `fid_dir`: BasicVSR++ 输出
-- `gen_dir`: SCST 输出
-- `gt_dir`: GT
-
-```bash
-python scripts/train_fusion.py \
-  --fid_dir results/part3_calendar_fid \
-  --gen_dir results/part3_calendar_B_only \
-  --gt_dir data/GT/calendar \
-  --save_path checkpoints/pretrained/fusion_cnn.pth \
-  --steps 2000
-```
-
-### Part3 评估命令
+## Evaluation
 
 ```bash
 python scripts/eval_pipeline.py \
   --gt_root data/GT \
   --results_root results \
-  --methods part3_{seq}_B_only part3_{seq}_C_hybrid \
-  --sequences calendar city foliage walk \
+  --methods bi_calendar_bicubic bi_calendar_srcnn bi_calendar_basicvsr \
+  --sequences calendar \
   --crop_border 4 \
-  --save_json results/eval_part3_bi.json
+  --skip_fid \
+  --save_json results/eval_results.json
 ```
 
-### 一键完整复现（Part1/2 + Part3 + 评估）
+Reports PSNR, SSIM, LPIPS (AlexNet), tLPIPS, Farneback flow EPE, and warp-L1 consistency. A combined overall score (45% frame quality + 55% temporal consistency) is computed via min-max normalization.
 
-在仓库根目录执行（需 GPU/CUDA 环境；SCST 权重不全时会自动退回 bicubic，指标仅供参考）：
+## One-Click Benchmark
 
 ```bash
+# Full pipeline (download → Part1/2 inference → Part3 inference → eval)
 python scripts/run_full_benchmark.py --phase all
-```
 
-分阶段（已有人工下载好权重时加 `--skip_download` 可跳过 `download_pretrained`）：
-
-```bash
+# Step by step
 python scripts/run_full_benchmark.py --phase download
 python scripts/run_full_benchmark.py --phase part12 --skip_download
 python scripts/run_full_benchmark.py --phase part3 --skip_download
 python scripts/run_full_benchmark.py --phase eval --skip_download
 ```
+
+## Methodology
+
+### Part 1: Classical Baselines
+- **Bicubic/Lanczos3**: Per-frame spatial interpolation without temporal modeling
+- **SRCNN** (Dong et al., 2015): 3-layer CNN after bicubic pre-upsampling
+- **Temporal Averaging**: Gaussian-weighted neighbor averaging with Unsharp Masking
+
+### Part 2: Recurrent VSR
+- **BasicVSR++** (Chan et al., CVPR 2022): Bidirectional recurrent network with second-order grid propagation and SpyNet optical flow alignment
+- **Real-ESRGAN** (Wang et al., 2021): RRDBNet backbone + PatchGAN discriminator + perceptual loss; high-order degradation pipeline
+- **Real-ESRNet**: Same backbone without GAN, fidelity-optimized
+
+### Part 3: Uncertainty-Aware Hybrid Fusion
+- **Fidelity branch**: BasicVSR++ output
+- **Generative branch**: SCST (Stable Diffusion 2.1 + ControlNet-Tile), 20 DDIM steps
+- **Fusion**: Pixel-wise sigmoid weights from temporal variance, inter-branch disagreement, edge strength, and generative instability
+- **Temporal refinement**: SpyNet flow-guided neighbor blending (λ=0.24)
+
+```
+w = σ(α·var_t + β·|fid - gen| - γ·edge - ζ·var_gen_t) · g
+output = (1-w) · fid + w · gen
+```
+
+## Datasets
+
+- **BI×4 / BD×4**: calendar (41f), city (34f), foliage (49f), walk (47f)
+- **Vimeo-90K**: 5 sequences (00001, 00010, 00019, 00046, 00090)
+- **Wild video**: 720p real-world clip, 132 frames
+
+## References
+
+- Dong et al., "Image Super-Resolution Using Deep Convolutional Networks," TPAMI 2015.
+- Chan et al., "BasicVSR++: Improving Video Super-Resolution with Enhanced Propagation and Alignment," CVPR 2022.
+- Wang et al., "Real-ESRGAN: Training Real-World Blind Super-Resolution with Pure Synthetic Data," ICCV 2021.
+- Liu et al., "SCST: Spatio-Temporal Consistent Video Super-Resolution with Diffusion Models," CVPR 2025.
+- Rombach et al., "High-Resolution Image Synthesis with Latent Diffusion Models," CVPR 2022.
+- Zhang et al., "Adding Conditional Control to Text-to-Image Diffusion Models," ICCV 2023.
+- Zhang et al., "The Unreasonable Effectiveness of Deep Features as a Perceptual Metric," CVPR 2018.
+- Chu et al., "Temporally Coherent GANs for Video Super-Resolution," ECCV 2020.
+
+## License
+
+This project is for academic/research purposes. Third-party components (SCST, Real-ESRGAN, BasicVSR++, Stable Diffusion) retain their original licenses.

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from models.baselines import InterpolationBaseline, SRCNN
+from models.baselines import InterpolationBaseline, SRCNN, TemporalAverageBaseline
 from models.basicvsr import BasicVSRWrapper
 from models.basicvsr_pp import BasicVSRPlusPlusWrapper
 from models.real_esrgan import RealESRGANVideo, RealESRNetVideo
@@ -15,6 +15,10 @@ def build_model(model_name: str, scale: int = 4, scst_ckpt_root: Optional[str] =
     name = model_name.lower()
     if name == "bicubic":
         return InterpolationBaseline(scale=scale, mode="bicubic")
+    if name == "lanczos":
+        return InterpolationBaseline(scale=scale, mode="lanczos")
+    if name in {"temporal_avg", "temporal_average"}:
+        return TemporalAverageBaseline(scale=scale, mode="bicubic")
     if name == "srcnn":
         return SRCNN(scale=scale)
     if name == "basicvsr":
@@ -35,6 +39,7 @@ def build_model(model_name: str, scale: int = 4, scst_ckpt_root: Optional[str] =
 
 __all__ = [
     "InterpolationBaseline",
+    "TemporalAverageBaseline",
     "SRCNN",
     "BasicVSRWrapper",
     "BasicVSRPlusPlusWrapper",
