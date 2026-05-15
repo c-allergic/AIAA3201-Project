@@ -34,4 +34,7 @@ __pycache__/
 PROJECT_PROGRESS.md
 Project_1__Video_Super_Resolution_arxiv_optional.pdf
 ol_key.txt
+ms_token.txt
+.env
+.env.*
 results/
