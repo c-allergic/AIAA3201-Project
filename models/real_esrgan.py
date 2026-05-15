@@ -77,7 +77,12 @@ class RealESRGANVideo(nn.Module):
             lr_frames = lr_frames.unsqueeze(0)
             squeeze = True
         b, t, c, h, w = lr_frames.shape
-        sr = self.net(lr_frames.reshape(b * t, c, h, w)).clamp(0.0, 1.0)
+        flat = lr_frames.reshape(b * t, c, h, w)
+        # Process one frame at a time to avoid OOM on long sequences
+        sr_list = []
+        for i in range(flat.shape[0]):
+            sr_list.append(self.net(flat[i:i+1]).clamp(0.0, 1.0))
+        sr = torch.cat(sr_list, dim=0)
         sr = sr.reshape(b, t, 3, sr.shape[-2], sr.shape[-1])
         return sr.squeeze(0) if squeeze else sr
 
@@ -126,6 +131,11 @@ class RealESRNetVideo(nn.Module):
             lr_frames = lr_frames.unsqueeze(0)
             squeeze = True
         b, t, c, h, w = lr_frames.shape
-        sr = self.net(lr_frames.reshape(b * t, c, h, w)).clamp(0.0, 1.0)
+        flat = lr_frames.reshape(b * t, c, h, w)
+        # Process one frame at a time to avoid OOM on long sequences
+        sr_list = []
+        for i in range(flat.shape[0]):
+            sr_list.append(self.net(flat[i:i+1]).clamp(0.0, 1.0))
+        sr = torch.cat(sr_list, dim=0)
         sr = sr.reshape(b, t, 3, sr.shape[-2], sr.shape[-1])
         return sr.squeeze(0) if squeeze else sr

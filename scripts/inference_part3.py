@@ -119,7 +119,7 @@ def main():
     scst.load_checkpoint(ckpts["scst_selected_unet"])
 
     with torch.no_grad():
-        sr_gen = scst(lr).clamp(0.0, 1.0)
+        sr_gen = scst(lr).clamp(0.0, 1.0).to(device)
         if sr_gen.dim() == 4:
             sr_gen = sr_gen.unsqueeze(0)
 
@@ -137,6 +137,8 @@ def main():
             if sr_fid.dim() == 4:
                 sr_fid = sr_fid.unsqueeze(0)
 
+            sr_gen = sr_gen.to(device)
+            sr_fid = sr_fid.to(device)
             rb_kw = dict(alpha=args.rule_alpha, beta=args.rule_beta, gamma=args.rule_gamma, zeta=args.rule_zeta)
             if args.fusion_ckpt:
                 fusion = _load_fusion_model(args.fusion_ckpt, device)

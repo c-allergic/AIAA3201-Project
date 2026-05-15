@@ -187,12 +187,13 @@ def calculate_fid(sr_dir: str, gt_dir: str, device: torch.device, batch_size: in
             batch_size=batch_size,
             device=device,
             dims=dims,
-            num_workers=4,
+            num_workers=0,
         )
     )
 
 
 def _safe_link(src: str, dst: str) -> None:
+    src = os.path.abspath(src)
     try:
         os.symlink(src, dst)
     except OSError:
